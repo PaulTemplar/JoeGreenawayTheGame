@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Joe Greenaway - the interactive game</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#e0e0e0;font-family:'Press Start 2P',system-ui,monospace;font-size:11px;line-height:1.5;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;overflow-x:hidden}
+h1{font-size:14px;text-align:center;color:#ffd700;margin:8px 0;text-shadow:2px 2px 0 #333}
+h2{font-size:12px;color:#7ec8e3;margin:6px 0;text-align:center}
+.screen{width:100%;max-width:420px;display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.active{display:flex}
+canvas.avatar{image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid #ffd700;background:#111;border-radius:4px}
+.info-box,.dialogue-box,.result-box{background:#1a1a1a;border:2px solid #444;padding:12px;width:100%;border-radius:6px}
+.dialogue-box{border-color:#7ec8e3;font-size:10px;min-height:70px}
+.btn{background:#2a2a2a;color:#fff;border:2px solid #666;padding:12px 8px;width:100%;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;text-align:left}
+.btn:active{background:#3a3a3a;border-color:#ffd700}
+.btn.correct{border-color:#4caf50;background:#1b3a1b}
+.btn.wrong{border-color:#f44336;background:#3a1b1b}
+.btn.primary{background:#1a3a5c;border-color:#7ec8e3;text-align:center;font-size:11px}
+.score-bar{display:flex;justify-content:space-between;width:100%;font-size:10px;color:#aaa;margin-bottom:4px}
+.high-score{color:#ffd700}
+.muted{color:#888;font-size:9px}
+#music-toggle{position:fixed;top:8px;right:8px;background:#222;border:1px solid #555;color:#ccc;font-size:9px;padding:4px 8px;border-radius:3px;z-index:100;font-family:inherit}
+.client-avatar{width:128px;height:128px}
+.title-joe{width:160px;height:160px}
+.choices{width:100%;display:flex;flex-direction:column;gap:8px}
+.feedback{text-align:center;padding:8px;font-size:10px}
+.good{color:#4caf50}
+.bad{color:#f44336}
+.warning{color:#ff9800}
+.boss-msg{background:#1a2a1a;border:2px solid #4caf50;padding:12px;margin:10px 0;border-radius:6px;color:#a5d6a7;font-size:10px;text-align:center}
+footer{margin-top:16px;font-size:8px;color:#555;text-align:center}
+</style>
+</head>
+<body>
+<button id="music-toggle">Music: ON</button>
+
+<div id="title-screen" class="screen active">
+  <h1>JOE GREENAWAY</h1>
+  <h2>the interactive game</h2>
+  <canvas id="title-joe" class="avatar title-joe" width="160" height="160"></canvas>
+  <p class="muted" style="text-align:center;margin:8px 0">Physiotherapy Diagnosis &amp; Treatment Simulator</p>
+  <div class="score-bar"><span>High Score: <span id="title-high" class="high-score">0</span></span></div>
+  <button class="btn primary" id="start-btn">START CLINIC</button>
+  <p class="muted" style="margin-top:12px;text-align:center">The best thing to happen to physiotherapy in a long time - Happy Ending Magazine</p>
+  <footer>Made for fun • Not medical advice</footer>
+</div>
+
+<div id="game-screen" class="screen">
+  <div class="score-bar">
+    <span>Score: <span id="current-score">0</span></span>
+    <span>High: <span id="high-score" class="high-score">0</span></span>
+  </div>
+  <canvas id="client-avatar" class="avatar client-avatar" width="128" height="128"></canvas>
+  <div class="info-box">
+    <div id="client-name" style="color:#ffd700;margin-bottom:4px"></div>
+    <div id="client-meta" class="muted"></div>
+  </div>
+  <div class="dialogue-box" id="client-dialogue"></div>
+  <div id="phase-label" class="muted" style="align-self:flex-start">Choose diagnosis:</div>
+  <div class="choices" id="choices"></div>
+  <div id="feedback" class="feedback"></div>
+</div>
+
+<div id="result-screen" class="screen">
+  <h2>Client Result</h2>
+  <div class="result-box" id="result-content"></div>
+  <button class="btn primary" id="next-btn">NEXT CLIENT</button>
+  <button class="btn" id="title-btn" style="margin-top:8px">Back to Title</button>
+</div>
+
+<script>
+const maleFirst=["James","John","Robert","Michael","David","William","Richard","Joseph","Thomas","Christopher","Daniel","Matthew","Anthony","Mark","Steven","Paul","Andrew","Joshua","Kevin","Brian","George","Timothy","Jason","Ryan","Jacob","Nicholas","Eric","Jonathan","Justin","Scott","Brandon","Benjamin","Samuel","Gregory","Frank","Alexander","Patrick","Jack","Dennis","Tyler","Aaron","Adam","Nathan","Henry","Peter","Kyle","Noah","Ethan","Jeremy","Christian","Keith","Austin","Sean","Dylan","Arthur","Jesse","Bryan","Bruce","Gabriel","Joe","Oliver","Leo","Harry","Charlie","Oscar","Theo","Finn","Lucas","Mason","Logan","Jake","Connor","Liam","Owen","Caleb","Isaac","Fernao"];
+const femaleFirst=["Mary","Patricia","Jennifer","Linda","Elizabeth","Barbara","Susan","Jessica","Sarah","Karen","Nancy","Lisa","Betty","Margaret","Sandra","Ashley","Dorothy","Kimberly","Emily","Donna","Michelle","Carol","Amanda","Melissa","Deborah","Stephanie","Rebecca","Sharon","Laura","Cynthia","Kathleen","Amy","Angela","Shirley","Anna","Brenda","Pamela","Emma","Nicole","Helen","Samantha","Katherine","Christine","Rachel","Carolyn","Janet","Catherine","Maria","Heather","Diane","Ruth","Julie","Olivia","Joyce","Virginia","Victoria","Kelly","Lauren","Christina","Joan","Evelyn","Judith","Andrea","Hannah","Megan","Cheryl","Jacqueline","Martha","Gloria","Teresa","Ann","Sara","Madison","Frances","Kathryn","Janice","Jean","Abigail","Alice","Judy","Sophia","Grace","Denise","Amber","Doris","Marilyn","Danielle","Beverly","Isabella","Theresa","Diana","Natalie","Brittany","Charlotte","Marie","Kayla","Alexis","Lori","Eleanor","Ruby","Ivy","Willow"];
+const surnames=["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Rodriguez","Martinez","Hernandez","Lopez","Gonzalez","Wilson","Anderson","Thomas","Taylor","Moore","Jackson","Martin","Lee","Perez","Thompson","White","Harris","Sanchez","Clark","Ramirez","Lewis","Robinson","Walker","Young","Allen","King","Wright","Scott","Torres","Nguyen","Hill","Flores","Green","Adams","Nelson","Baker","Hall","Rivera","Campbell","Mitchell","Carter","Roberts","Abreu","Phillips","Evans","Turner","Parker","Collins","Edwards","Stewart","Morris","Murphy","Cook","Rogers","Morgan","Cooper","Peterson","Bailey","Reed","Kelly","Howard","Cox","Ward","Richardson","Wood","Watson","Brooks","Bennett","Gray","James","Reyes","Cruz","Hughes","Price","Myers","Long","Foster","Sanders","Ross","Morales","Powell","Sullivan","Russell","Ortiz","Jenkins","Gutierrez","Perry","Butler","Barnes","Fisher"];
+const occupations=["Teacher","Accountant","Nurse","Builder","Software Developer","Chef","Delivery Driver","Retail Assistant","Electrician","Physio Student","Lawyer","Graphic Designer","Musician","Farmer","University Student","Retired","Firefighter","Police Officer","Pilot","Writer","Amateur Athlete","Barista","Mechanic","Interior Designer","Office Manager","Warehouse Worker","Hairdresser","Gardener","Taxi Driver","Photographer","Librarian","Personal Trainer","Care Assistant","Plumber","Architect","Journalist","Shop Owner","Call Centre Agent","Scientist","Waiter","Murderer"];
+
+const ailments = [
+{id:"lbp",name:"Lumbar Strain / Non-specific Low Back Pain",dialogue:"Hello Joe. I've been getting a real ache in my lower back for a couple of weeks. It hurts every time I bend forward or sit at my desk too long. Feels stiff in the mornings.",correctDx:["Lumbar Strain / Non-specific Low Back Pain","Discogenic Low Back Pain","Facet Joint Irritation","Sacroiliac Joint Dysfunction"],correctTx:["Advice + graded activity / McKenzie exercises","Soft tissue massage + mobility work","Core activation + posture advice","Heat and gentle stretches"],funnyTx:["Recommend lying on the floor for 3 days","Spinal decompression with a car jack","Amputation of the lower back","Sensual touching of the lumbar region"]},
+{id:"frozen",name:"Frozen Shoulder (Adhesive Capsulitis)",dialogue:"Hi Joe. My shoulder has been getting stiffer and more painful for months. I can barely lift my arm and it really hurts when I try to reach behind my back or overhead.",correctDx:["Frozen Shoulder (Adhesive Capsulitis)","Rotator Cuff Tendinopathy","Shoulder Impingement","Glenohumeral Osteoarthritis"],correctTx:["Gentle pendulum + progressive ROM exercises","Manual therapy + stretching","Pain education + activity modification","Steroid injection referral + physio"],funnyTx:["Force it through the full range immediately","Recommend hanging from a door frame for hours","Amputation at the shoulder","Sensual touching of the deltoid"]},
+{id:"tennis",name:"Lateral Epicondylalgia (Tennis Elbow)",dialogue:"Hello Joe. The outside of my elbow has been sore for weeks. It really hurts when I grip things, turn a doorknob or even lift a mug. I'm not even good at tennis!",correctDx:["Lateral Epicondylalgia (Tennis Elbow)","Radial Tunnel Syndrome","Cervical Referred Pain","Wrist Extensor Strain"],correctTx:["Eccentric loading exercises + activity mod","Soft tissue treatment + taping","Counterforce brace advice","Progressive strengthening of forearm"],funnyTx:["Switch to left hand for everything","Recommend only drinking through a straw","Amputation of the forearm","Sensual touching of the lateral epicondyle"]},
+{id:"knee",name:"Patellofemoral Pain / Knee Irritation",dialogue:"Hey Joe. The front of my knee has been niggling for ages. Stairs are the worst and it aches after I've been sat down. Feels a bit weak when I try to squat.",correctDx:["Patellofemoral Pain Syndrome","Meniscal Irritation","Patellar Tendinopathy","IT Band Friction Syndrome"],correctTx:["Quad + hip strengthening programme","Activity modification + taping","Soft tissue work around the knee","Graded return to loading"],funnyTx:["Recommend never bending the knee again","Ice bath for the entire leg overnight","Amputation above the knee","Sensual touching of the patella"]},
+{id:"plantar",name:"Plantar Fasciopathy",dialogue:"Morning Joe. The bottom of my foot is killing me, especially the first few steps out of bed. It eases a bit then comes back after I've been on my feet all day.",correctDx:["Plantar Fasciopathy","Heel Fat Pad Contusion","Tarsal Tunnel Syndrome","Calcaneal Stress Reaction"],correctTx:["Calf stretches + plantar fascia loading","Night splint or taping advice","Footwear assessment + orthotic trial","Gradual return to impact"],funnyTx:["Recommend walking only on hands","Buy shoes three sizes too big","Amputation of the foot","Sensual touching of the plantar fascia"]},
+{id:"neck",name:"Cervical Strain / Mechanical Neck Pain",dialogue:"Hi Joe. My neck has been really tight and sore. Looking down at my phone makes it worse and I get headaches by the end of the day. Turning to check blind spots is becoming a problem.",correctDx:["Cervical Strain / Mechanical Neck Pain","Cervicogenic Headache","Upper Trapezius Myofascial Pain","Facet Joint Irritation"],correctTx:["Posture advice + deep neck flexor work","Manual therapy + mobility exercises","Ergonomic changes + movement breaks","Scapular strengthening"],funnyTx:["Recommend a neck brace 24/7","Sleep only in a sitting position","Amputation of the head (carefully)","Sensual touching of the upper traps"]},
+{id:"ankle",name:"Lateral Ankle Sprain (recovering)",dialogue:"Joe, I rolled my ankle a couple of weeks ago. It's still a bit swollen and feels unstable when I walk on grass or try to change direction quickly.",correctDx:["Lateral Ankle Sprain","Peroneal Tendinopathy","Osteochondral Lesion","Chronic Ankle Instability"],correctTx:["Proprioception + strength work","Taping or brace for return to sport","Graded return to running plan","Manual therapy for residual stiffness"],funnyTx:["Recommend hopping on the other foot only","Wrap it in kitchen foil","Amputation of the foot","Sensual touching of the lateral ligaments"]},
+{id:"rotator",name:"Rotator Cuff Related Shoulder Pain",dialogue:"Hello Joe. I've got this pain in my shoulder that goes into the upper arm. It really catches when I try to lift my arm out to the side or reach into a high cupboard.",correctDx:["Rotator Cuff Related Shoulder Pain","Subacromial Pain Syndrome","Biceps Tendinopathy","AC Joint Irritation"],correctTx:["Isometric then progressive loading","Scapular control exercises","Activity modification + education","Manual therapy as adjunct"],funnyTx:["Recommend only using the other arm","Carry a bag of potatoes for traction","Amputation at mid-humerus","Sensual touching of the rotator cuff"]},
+{id:"sciatica",name:"Lumbar Radicular Pain (Sciatica-type)",dialogue:"Joe, I've got this sharp pain that starts in my buttock and shoots down the back of my leg. Sitting is the worst and sometimes I get a bit of tingling in my foot.",correctDx:["Lumbar Radicular Pain","Piriformis Syndrome","Hamstring Referral","Sacroiliac Referral"],correctTx:["Nerve mobility + directional preference","Education + graded activity","Core + hip strength work","Manual therapy if indicated"],funnyTx:["Recommend only standing for the rest of life","Hang upside down like a bat","Amputation of the leg","Sensual touching of the sciatic nerve"]},
+{id:"phone",name:"Chronic Doomscroll Thumb / Texting Tenosynovitis",dialogue:"Hey Joe. My thumb and the side of my wrist are killing me. I think I've been scrolling a bit too much late at night. It clicks and aches every time I unlock my phone.",correctDx:["De Quervain's-ish / Texting Tenosynovitis","CMC Joint Irritation","Wrist Extensor Overuse","Trigger Thumb Tendency"],correctTx:["Relative rest + thumb spica advice","Eccentric + isometric loading","Ergonomic phone habits + breaks","Soft tissue + joint mobilisation"],funnyTx:["Confiscate the phone permanently","Recommend carrier pigeon communication","Amputation of the thumb","Sensual touching of the thenar eminence"]},
+{id:"netflix",name:"Netflix Shoulder / Sofa Posture Syndrome",dialogue:"Joe... I may have watched an entire season in one sitting. Now I've got this deep ache between my shoulder blades and my neck feels like concrete. Help.",correctDx:["Postural / Mechanical Thoracic Pain","Lower Trapezius Weakness","Rhomboid Overload","Cervicothoracic Junction Stiffness"],correctTx:["Movement breaks + thoracic extension work","Scapular retraction strengthening","Posture education + sofa setup advice","Soft tissue release + mobility"],funnyTx:["Ban all streaming services","Recommend watching only while planking","Amputation of the sofa","Sensual touching between the scapulae"]},
+{id:"highfive",name:"Overenthusiastic High-Five Injury",dialogue:"Joe I high-fived a mate a bit too hard at the weekend. My palm is bruised and my wrist feels weird. I think I put my whole soul into it.",correctDx:["Wrist Sprain / Contusion","TFCC Irritation","Carpal Contusion","Extensor Strain"],correctTx:["Relative rest + gentle ROM","Progressive loading once settled","Taping for support","Ice and elevation advice"],funnyTx:["Only low-fives from now on","Recommend fist bumps exclusively","Amputation of the hand","Sensual touching of the palm"]},
+{id:"aura",name:"Misaligned Aura / Energy Blockage (self-diagnosed)",dialogue:"Hello Joe. My aura feels completely off. There's a blockage somewhere on my left side and I just know it's affecting my biomechanics. Can you realign me?",correctDx:["Non-specific Musculoskeletal Discomfort","Heightened Body Awareness","Possible True Impairment + Belief","No Clear Pathoanatomical Diagnosis"],correctTx:["Reassurance + graded exposure to movement","Find and treat any actual physical findings","Education on pain science","Encourage helpful beliefs + activity"],funnyTx:["Burn sage in the clinic","Crystal therapy referral","Amputation of the aura","Sensual touching to realign chakras"]},
+{id:"glute",name:"Spontaneous Gluteal Combustion Risk",dialogue:"Joe this is going to sound mad but my left glute feels like it's about to spontaneously combust. There's heat and a weird deep ache. I'm scared to sit down.",correctDx:["Deep Gluteal Pain / Possible Piriformis","Ischial Bursitis","Referred Lumbar Pain","Proximal Hamstring Irritation"],correctTx:["Assessment of lumbar + hip + neural","Graded loading of the posterior chain","Sitting advice + movement variety","Manual therapy if appropriate"],funnyTx:["Recommend a fire extinguisher nearby","Sit only on ice packs","Amputation of the left glute","Sensual touching of the gluteal region"]},
+{id:"floating",name:"Mysterious Migrating Knee Pain",dialogue:"Joe the pain is in my knee... but the second you touch it, it moves. Yesterday it was medial, today it's more anterior. I'm not making this up I swear.",correctDx:["Nociceptive / Nociplastic Knee Pain","Patellofemoral + other contributors","Heightened Sensitivity","Inconsistent Presentation - further screen"],correctTx:["Thorough subjective + objective exam","Treat the most consistent findings","Pain education + graded exposure","Monitor and reassess"],funnyTx:["Chase the pain with a butterfly net","Recommend painting the knee different colours","Amputation so it has nowhere to hide","Sensual touching wherever it currently is"]},
+{id:"achilles",name:"Achilles Tendinopathy",dialogue:"Hi Joe. The back of my heel and Achilles has been really sore, especially first thing in the morning and after I go for a run. It feels thick and creaky.",correctDx:["Achilles Tendinopathy","Retrocalcaneal Bursitis","Calf Strain","Sever's Disease (if young)"],correctTx:["Heavy slow resistance loading","Calf raises progressive programme","Activity modification + footwear check","Soft tissue work + heel lifts temporary"],funnyTx:["Recommend walking only on tip-toes","Cut the Achilles for a fresh start","Amputation at the ankle","Sensual touching of the Achilles"]},
+{id:"gtps",name:"Greater Trochanteric Pain Syndrome",dialogue:"Hello Joe. I've got this nagging pain on the outside of my hip. It hurts to lie on that side and going up stairs is unpleasant. Feels like something's rubbing.",correctDx:["Greater Trochanteric Pain Syndrome","Gluteal Tendinopathy","Hip OA referral","Lumbar referral"],correctTx:["Gluteal strengthening + load management","Activity modification (side-lying)","Soft tissue + education","Progressive tendon loading"],funnyTx:["Sleep only on the other side forever","Recommend a hip replacement immediately","Amputation of the hip","Sensual touching of the greater trochanter"]},
+{id:"golfers",name:"Medial Epicondylalgia (Golfer's Elbow)",dialogue:"Joe, the inside of my elbow is killing me. Gripping and lifting makes it worse – I don't even play golf! It started after a weekend of DIY.",correctDx:["Medial Epicondylalgia (Golfer's Elbow)","Ulnar Nerve Irritation","Flexor-Pronator Strain","Cervical Referral"],correctTx:["Eccentric / isometric loading of flexors","Activity modification + technique advice","Soft tissue treatment + taping","Progressive strengthening"],funnyTx:["Switch to left-handed DIY","Ban all screwdrivers","Amputation of the forearm","Sensual touching of the medial epicondyle"]},
+{id:"itb",name:"IT Band Related Pain",dialogue:"Hey Joe. I've got this sharp pain on the outside of my knee that comes on after I've been running for a while. It settles with rest but keeps coming back.",correctDx:["IT Band Related Pain / Friction Syndrome","Lateral Meniscus Irritation","Patellofemoral Pain","Proximal Tib-Fib Issue"],correctTx:["Hip abductor strengthening","Load management + running advice","Soft tissue work + foam roller education","Gait / cadence assessment"],funnyTx:["Recommend only running in circles the other way","Cut the IT band free","Amputation above the knee","Sensual touching of the IT band"]},
+{id:"gardening",name:"Gardening-Induced Lumbar Overload",dialogue:"Joe I spent the whole weekend in the garden weeding and lifting bags of compost. Now my lower back is locked up and I can barely stand up straight.",correctDx:["Acute Lumbar Strain / Overload","Facet Irritation","Discogenic Pain","Muscle Spasm"],correctTx:["Relative rest then graded movement","Heat + gentle mobility","Advice on lifting technique","Core reactivation exercises"],funnyTx:["Recommend hiring a gardener immediately","Lie in the garden until it passes","Amputation of the lower back","Sensual touching while discussing plants"]},
+{id:"tiktok",name:"TikTok Dance Injury",dialogue:"Hi Joe... I may have attempted a viral dance challenge. Now my knee / hip / back is not happy with me. It happened so fast!",correctDx:["Acute Muscular Strain","Joint Sprain from awkward movement","Delayed Onset Muscle Soreness + more","Possible meniscal / labral irritation"],correctTx:["POLICE principles early","Graded return to movement","Strength and control work","Education on progressive loading"],funnyTx:["Ban TikTok permanently","Recommend only watching dances","Amputation of the offending limb","Sensual touching while reviewing the video"]},
+{id:"ikea",name:"IKEA Flat-Pack Wrist / Hand Overuse",dialogue:"Joe I've been assembling furniture all weekend. My wrists and the base of my thumbs are swollen and painful. Allen keys are the enemy.",correctDx:["Wrist Extensor / Flexor Overuse","De Quervain's-type presentation","CMC Joint Irritation","TFCC Strain"],correctTx:["Relative rest + activity modification","Isometric then progressive loading","Ergonomic advice for tools","Soft tissue + joint mobilisations"],funnyTx:["Only buy pre-assembled furniture","Recommend a personal assembler","Amputation of both hands","Sensual touching of the wrists"]},
+{id:"dogpull",name:"Dog-Walking Shoulder / Arm Yank Injury",dialogue:"Hello Joe. My dog saw a squirrel and nearly pulled my arm out of its socket. Shoulder and upper arm have been sore and weak ever since.",correctDx:["Acute Shoulder Strain / Subluxation sensation","Rotator Cuff Irritation","Biceps Strain","AC Joint Sprain"],correctTx:["Protection then progressive loading","Scapular and cuff isometrics","Activity modification (shorter leads)","Manual therapy as needed"],funnyTx:["Recommend a smaller dog","Only walk cats from now on","Amputation at the shoulder","Sensual touching while the dog watches"]},
+{id:"member",name:"Penile Strain from Midget Jiu Jitsu Videos",dialogue:"Joe... this is embarrassing. I was watching some midget jiu jitsu videos and I think I've injured my member. It hurts when it gets hard and feels bruised. Help me out here.",correctDx:["Penile Strain / Soft Tissue Injury","Peyronie's-type irritation","Traumatic Swelling","Overuse from... vigorous activity"],correctTx:["Recommend icing the penis","Massage the pain away","Relative rest + anti-inflammatory advice","Gentle stretching once settled"],funnyTx:["Amputation of the member","Recommend only watching normal-sized jiu jitsu","Sensual touching of the area","Tell them to man up"]},
+{id:"smell",name:"Foul Smelling Genitals",dialogue:"Joe... I've got a bit of an embarrassing problem. My genitals have started smelling really foul and I'm worried it's related to my training. Can you sort it?",correctDx:["That isn't a physiotherapy problem","Possible infection / hygiene issue","Not musculoskeletal","Refer to GP / Sexual Health"],correctTx:["That isn't my job to treat","Advise seeing a GP or sexual health clinic","Recommend basic hygiene advice only","Do not examine or treat"],funnyTx:["Apply antibiotic lotion yourself","Offer to have a closer look","Recommend a scented candle","Amputation of the genitals"]},
+{id:"flatulence",name:"Chronic Training-Related Flatulence",dialogue:"Hello Joe. Every time I do core work or run I start farting uncontrollably. It's destroying my social life and my training partners are complaining.",correctDx:["Dietary / Gut-related issue","Not a musculoskeletal condition","Possible core bracing pattern","Refer to dietitian / GP"],correctTx:["That isn't really my area","Advise seeing a GP or dietitian","Suggest food diary","Do not attempt internal treatment"],funnyTx:["Recommend holding it in harder","Prescribe anti-fart stretches","Offer to light a match","Amputation of the colon"]},
+{id:"erectile",name:"Exercise-Induced Erectile Dysfunction",dialogue:"Joe this is awkward... every time I finish a heavy leg session I can't get it up for hours. I think my training is breaking my penis.",correctDx:["Not a primary physiotherapy diagnosis","Possible vascular / systemic issue","Refer to GP","Overtraining / fatigue related"],correctTx:["Advise seeing a GP","Recommend recovery and load management","Not something I treat directly","Suggest medical review"],funnyTx:["Offer a happy ending to test it","Recommend only training upper body","Massage the problem away","Amputation as a last resort"]},
+{id:"armpit",name:"Aggressive Armpit Odour After Training",dialogue:"Hi Joe. My armpits have become nuclear after every session. People are moving away from me in the gym and on the bus. Is this a physio thing?",correctDx:["Hygiene / bacterial issue","Not musculoskeletal","Refer to GP if persistent","Normal post-exercise odour"],correctTx:["Advise better hygiene and antiperspirant","That isn't my job","Suggest seeing a GP","Recommend washing more thoroughly"],funnyTx:["Offer to apply deodorant for them","Prescribe armpit stretches","Recommend cutting the armpits off","Sensual touching of the axilla"]},
+{id:"moan",name:"Involuntary Moaning During Stretches",dialogue:"Joe every time you get me into certain stretches I start making really inappropriate noises. I can't control it and it's getting embarrassing.",correctDx:["Normal response to stretch / tension release","No pathological diagnosis","Possibly linked to nervous system","Not a condition requiring treatment"],correctTx:["Reassure that it's common","Continue with appropriate stretching","Educate on the nervous system","No special intervention needed"],funnyTx:["Offer a happy ending to complete the noise","Recommend only silent stretches","Gag them during treatment","Amputation of the vocal cords"]},
+{id:"acl",name:"ACL Reconstruction Rehab",dialogue:"Joe I had my ACL done 4 months ago. I still don't trust the knee fully when I try to change direction.",correctDx:["ACL Reconstruction Rehabilitation","Residual Instability","Quadriceps Inhibition","Patellofemoral Overload"],correctTx:["Progressive strength + hop testing","Neuromuscular control work","Graded return to sport","Criteria-based progression"],funnyTx:["Recommend a new knee","Amputation and a peg leg","Sensual touching of the graft site","Tell them to take up darts"]},
+{id:"meniscus",name:"Meniscal Irritation",dialogue:"Hello Joe. My knee locks and clicks, especially when I twist. It swells up after longer walks.",correctDx:["Meniscal Irritation","Meniscal Tear","Osteoarthritis Flare","Plica Syndrome"],correctTx:["Load modification + quad strength","Avoid deep loaded twisting","Progressive loading","Referral if true locking"],funnyTx:["Recommend never bending the knee","Amputation above the knee","Sensual touching of the joint line","Tell them to walk in straight lines only"]},
+{id:"severs",name:"Sever's Disease (Calcaneal Apophysitis)",dialogue:"Joe my 11-year-old's heel is killing him after football. He limps off the pitch every week.",correctDx:["Sever's Disease","Plantar Fasciopathy","Achilles Tendinopathy","Heel Fat Pad"],correctTx:["Activity modification + heel raises","Calf stretching + relative rest","Footwear check","Gradual return"],funnyTx:["Recommend retiring from sport at 11","Amputation of the heel","Sensual touching of the growth plate","Tell them to take up chess"]},
+{id:"osgood",name:"Osgood-Schlatter Disease",dialogue:"Hi Joe. My teenage son's knee has a big painful bump just below the kneecap. It flares up with sport.",correctDx:["Osgood-Schlatter","Patellar Tendinopathy","Sinding-Larsen","Tibial Tubercle Irritation"],correctTx:["Load management","Quad and hip strength","Activity modification","Education on growth"],funnyTx:["Recommend stopping all sport forever","Amputation of the tibial tubercle","Sensual touching of the bump","Tell them to become a streamer"]},
+{id:"tennisleg",name:"Tennis Leg (Medial Gastroc Tear)",dialogue:"Joe I felt a sudden pop in my calf while reaching for a ball. It bruised really badly.",correctDx:["Medial Gastrocnemius Tear","Soleus Strain","Plantaris Rupture","Deep Vein Screen"],correctTx:["POLICE + early movement","Progressive calf loading","Heel raises","Return to sport testing"],funnyTx:["Recommend only playing chess","Amputation of the calf","Sensual touching of the tear","Tell them to switch to table tennis"]},
+{id:"cuboid",name:"Cuboid Syndrome",dialogue:"Hello Joe. The outside of my midfoot has been painful and it feels like something is out of place when I walk.",correctDx:["Cuboid Syndrome","Peroneal Tendinopathy","Lisfranc Irritation","Lateral Column Overload"],correctTx:["Cuboid mobilisation","Peroneal strengthening","Taping + footwear","Gait advice"],funnyTx:["Recommend never walking again","Amputation of the foot","Sensual touching of the cuboid","Tell them to buy bigger shoes"]},
+{id:"plantarplate",name:"Plantar Plate Irritation",dialogue:"Joe the ball of my foot hurts, especially under the second toe. It feels like I'm walking on a pebble.",correctDx:["Plantar Plate Irritation","Metatarsalgia","Morton's Neuroma","Stress Reaction"],correctTx:["Offloading + taping","Footwear advice","Intrinsic foot strength","Relative rest"],funnyTx:["Recommend walking on hands","Amputation of the forefoot","Sensual touching of the metatarsal","Tell them to only wear moon boots"]},
+{id:"snappinghip",name:"Snapping Hip Syndrome",dialogue:"Hi Joe. My hip clicks and snaps loudly every time I lift my leg. It's starting to get painful.",correctDx:["Snapping Hip (Internal/External)","Iliopsoas Tendinopathy","IT Band Snapping","Labral Contribution"],correctTx:["Hip flexor + abductor control","Load management","Manual therapy","Education"],funnyTx:["Recommend oiling the joint","Amputation of the hip","Sensual touching while it snaps","Tell them to join a percussion band"]},
+{id:"costochondritis",name:"Costochondritis-type Pain",dialogue:"Joe I've got this sharp pain at the front of my chest near the ribs. Deep breathing and pressing it hurts.",correctDx:["Costochondritis","Tietze Syndrome","Rib Joint Dysfunction","Referred Thoracic"],correctTx:["Activity modification","Gentle mobility","Postural work","Medical screen if needed"],funnyTx:["Recommend never breathing deeply","Amputation of the rib","Sensual touching of the costal cartilage","Tell them to take shallow breaths only"]},
+{id:"triggerfinger",name:"Trigger Finger / Thumb",dialogue:"Joe one of my fingers keeps locking and then popping straight with a click. It's getting stuck more often.",correctDx:["Trigger Finger","Trigger Thumb","Dupuytren's Nodule","Tendon Sheath Irritation"],correctTx:["Splinting + relative rest","Tendon gliding exercises","Activity modification","Referral if locked"],funnyTx:["Recommend never bending that finger","Amputation of the digit","Sensual touching of the A1 pulley","Tell them to only use voice control"]},
+{id:"mallet",name:"Mallet Finger",dialogue:"Hi Joe. I jammed my finger and now the tip just hangs down. I can't straighten the end joint.",correctDx:["Mallet Finger","Extensor Tendon Injury","Swan Neck Developing","Fracture Consideration"],correctTx:["Continuous stacking splint","Education on 6–8 weeks","Protected movement later","Referral if bony"],funnyTx:["Recommend a permanent droop","Amputation of the fingertip","Sensual touching of the terminal extensor","Tell them to point with another finger"]},
+{id:"jersey",name:"Jersey Finger",dialogue:"Joe I grabbed someone's shirt and felt a pop in my finger. Now I can't bend the tip at all.",correctDx:["Jersey Finger","FDP Avulsion","Flexor Tendon Injury","Urgent Hand Referral"],correctTx:["Urgent referral to hand specialist","Protective splinting","Do not attempt to stretch","Surgical pathway"],funnyTx:["Recommend never grabbing shirts","Amputation of the finger","Sensual touching of the FDP","Tell them to only high-five"]},
+{id:"skiers",name:"Skier's Thumb (UCL)",dialogue:"Hello Joe. I fell onto my hand and now the inside of my thumb is really unstable and painful.",correctDx:["UCL Injury (Skier's Thumb)","Stener Lesion Possible","Thumb CMC Issue","Fracture Screen"],correctTx:["Thumb spica / referral","Stability testing","Protected movement","Surgical opinion if unstable"],funnyTx:["Recommend never falling","Amputation of the thumb","Sensual touching of the UCL","Tell them to take up indoor climbing"]},
+{id:"gamekeepers",name:"Gamekeeper's Thumb",dialogue:"Joe the thumb has been lax for years from repetitive strain and now it gives way when I pinch.",correctDx:["Chronic UCL Laxity","Gamekeeper's Thumb","CMC Osteoarthritis","Instability"],correctTx:["Stability exercises","Splinting for high demand","Activity modification","Surgical opinion if severe"],funnyTx:["Recommend never pinching anything","Amputation of the thumb","Sensual touching of the ligament","Tell them to become a monk"]},
+{id:"dupuytren",name:"Dupuytren's Contracture",dialogue:"Hi Joe. The palm of my hand has these hard cords and my finger is starting to bend in and I can't straighten it fully.",correctDx:["Dupuytren's Contracture","Trigger Finger Differential","Tendon Sheath","Palmar Fascia"],correctTx:["Observation + education","Referral to hand specialist","Collagenase / surgery pathway","Stretching has limited value"],funnyTx:["Recommend accepting the claw","Amputation of the affected rays","Sensual touching of the cords","Tell them to only use the other hand"]},
+{id:"boxer",name:"Boxer's Fracture (5th MC)",dialogue:"Joe I punched a wall (don't ask) and now the knuckle has dropped and it's swollen.",correctDx:["5th Metacarpal Fracture","Boxer's Fracture","Soft Tissue Contusion","Need Imaging"],correctTx:["Buddy strapping / splint","Urgent imaging","Protected movement","Referral"],funnyTx:["Recommend anger management","Amputation of the metacarpal","Sensual touching of the fracture","Tell them to punch pillows instead"]},
+{id:"scaphoid",name:"Scaphoid Injury Suspicion",dialogue:"Hello Joe. I fell on an outstretched hand and the base of my thumb still hurts weeks later, especially in the anatomical snuffbox.",correctDx:["Possible Scaphoid Fracture","Scaphoid Injury","Wrist Sprain","Need Imaging"],correctTx:["Urgent imaging / scaphoid protocol","Thumb spica","Do not discharge early","Specialist review"],funnyTx:["Recommend never falling again","Amputation of the scaphoid","Sensual touching of the snuffbox","Tell them to wear wrist guards forever"]},
+{id:"tfcc2",name:"TFCC Tear / Ulnar Wrist Pain",dialogue:"Joe the little finger side of my wrist hurts with rotation and weight-bearing. It clicks too.",correctDx:["TFCC Injury","Ulnar Impaction","ECU Tendinopathy","DRUJ Instability"],correctTx:["Load modification","Progressive strengthening","Splinting","Specialist review if unstable"],funnyTx:["Recommend never rotating the forearm","Amputation of the ulnar side","Sensual touching of the TFCC","Tell them to only use the other wrist"]},
+{id:"intersection",name:"Intersection Syndrome",dialogue:"Hi Joe. I have pain and creaking on the back of my forearm where the tendons cross, worse with repetitive wrist movement.",correctDx:["Intersection Syndrome","Extensor Tendinopathy","De Quervain's Differential","Peritendinitis"],correctTx:["Relative rest + progressive loading","Activity modification","Soft tissue work","Ergonomics"],funnyTx:["Recommend never using that arm","Amputation of the extensors","Sensual touching of the intersection","Tell them to switch hands"]},
+{id:"lateralepi",name:"Lateral Epicondylalgia (chronic)",dialogue:"Joe the outside of my elbow has been sore for months. Even holding a cup of tea hurts now.",correctDx:["Lateral Epicondylalgia","Radial Tunnel","Cervical Referral","Wrist Extensor Tendinopathy"],correctTx:["Isometric + eccentric loading","Activity modification","Counterforce brace","Education on load"],funnyTx:["Recommend only drinking through a straw","Amputation of the elbow","Sensual touching of the epicondyle","Tell them to become left-handed"]},
+{id:"medialepi",name:"Medial Epicondylalgia",dialogue:"Hello Joe. The inside of my elbow is painful with gripping and wrist flexion. Golf and DIY make it worse.",correctDx:["Medial Epicondylalgia","Ulnar Nerve Irritation","Flexor-Pronator Strain","Cervical Contribution"],correctTx:["Progressive loading","Activity modification","Soft tissue","Technique advice"],funnyTx:["Recommend quitting DIY and golf","Amputation of the medial side","Sensual touching of the common flexor","Tell them to hire a handyman"]},
+{id:"olecranon",name:"Olecranon Bursitis",dialogue:"Joe the point of my elbow has a big squashy swelling. It doesn't hurt much but looks awful.",correctDx:["Olecranon Bursitis","Infection Screen","Gout Consideration","Trauma Related"],correctTx:["Protection + padding","Avoid leaning","Medical review if red/hot","Aspiration pathway if needed"],funnyTx:["Recommend popping it yourself","Amputation of the bursae","Sensual touching of the swelling","Tell them to stop leaning on desks"]},
+{id:"cubital",name:"Cubital Tunnel Syndrome",dialogue:"Hi Joe. My ring and little finger go numb when I bend my elbow for long periods or lean on it.",correctDx:["Cubital Tunnel Syndrome","Ulnar Neuropathy","Cervical Radiculopathy","Thoracic Outlet"],correctTx:["Activity modification + padding","Neural glides","Night extension splint","Referral if progressive"],funnyTx:["Recommend never bending the elbow","Amputation of the ulnar nerve","Sensual touching of the cubital tunnel","Tell them to walk around with arms straight"]},
+{id:"radialtunnel",name:"Radial Tunnel Syndrome",dialogue:"Joe I have deep aching in the forearm that gets worse with repetitive use. It's not exactly on the bone.",correctDx:["Radial Tunnel Syndrome","Posterior Interosseous","Lateral Epicondylalgia Differential","Cervical"],correctTx:["Load management","Neural mobilisation","Activity modification","Education"],funnyTx:["Recommend never using the arm","Amputation of the radial nerve","Sensual touching of the arcade of Frohse","Tell them to retire"]},
+{id:"supraspinatus",name:"Supraspinatus Tendinopathy",dialogue:"Hello Joe. Pain at the top and side of my shoulder, especially when I lift my arm out to the side or sleep on it.",correctDx:["Supraspinatus Tendinopathy","Subacromial Pain Syndrome","Rotator Cuff Related","Calcific Consideration"],correctTx:["Isometric then progressive loading","Scapular control","Activity modification","Education"],funnyTx:["Recommend never lifting the arm","Amputation at the shoulder","Sensual touching of the supraspinatus","Tell them to only use the other arm"]},
+{id:"infraspinatus",name:"Infraspinatus Tendinopathy",dialogue:"Joe pain at the back of the shoulder when I try to rotate my arm outwards or reach behind my back.",correctDx:["Infraspinatus Tendinopathy","Posterior Cuff","Labral Contribution","Referred Cervical"],correctTx:["External rotation loading","Scapular work","Load management","Manual therapy"],funnyTx:["Recommend never rotating outwards","Amputation of the infraspinatus","Sensual touching of the posterior cuff","Tell them to walk backwards"]},
+{id:"subscap",name:"Subscapularis Tendinopathy",dialogue:"Hi Joe. Pain at the front of the shoulder and I struggle to reach behind my back to tuck my shirt in.",correctDx:["Subscapularis Tendinopathy","Anterior Cuff","Biceps Involvement","Instability"],correctTx:["Internal rotation loading","Progressive strength","Activity modification","Education"],funnyTx:["Recommend never tucking shirts in","Amputation of the subscapularis","Sensual touching of the lesser tuberosity","Tell them to only wear stretchy clothes"]},
+{id:"acjoint",name:"AC Joint Irritation",dialogue:"Joe the very top of my shoulder near the collarbone is sore, especially when I reach across my body or lie on it.",correctDx:["AC Joint Irritation","AC Joint Osteoarthritis","Distal Clavicle Osteolysis","Cuff Differential"],correctTx:["Load modification","Avoid cross-body early","Progressive loading","Padding if needed"],funnyTx:["Recommend never reaching across","Amputation of the distal clavicle","Sensual touching of the AC joint","Tell them to only sleep on their back"]},
+{id:"scjoint",name:"SC Joint Irritation",dialogue:"Hello Joe. The joint where my collarbone meets the breastbone is painful and clicks sometimes.",correctDx:["SC Joint Irritation","SC Joint Dysfunction","Referred Cervical / Thoracic","Instability Rare"],correctTx:["Activity modification","Postural work","Gentle mobility","Medical screen if traumatic"],funnyTx:["Recommend never moving the shoulder girdle","Amputation of the clavicle","Sensual touching of the SC joint","Tell them to become a statue"]},
+{id:"longhead",name:"Long Head of Biceps Tendinopathy",dialogue:"Joe pain at the front of the shoulder that sometimes travels down the biceps, worse with lifting and overhead.",correctDx:["Long Head Biceps Tendinopathy","SLAP Contribution","Subacromial Pain","Cuff Overlap"],correctTx:["Load management","Progressive strengthening","Scapular control","Education"],funnyTx:["Recommend never curling again","Amputation of the long head","Sensual touching of the bicipital groove","Tell them to only do machine work"]},
+{id:"slap",name:"SLAP-type Presentation",dialogue:"Hi Joe. Deep shoulder pain with clicking and a feeling of instability, especially with overhead or throwing movements.",correctDx:["SLAP-type Irritation","Labral Pathology","Biceps Anchor","Instability Spectrum"],correctTx:["Scapular + cuff strengthening","Proprioception","Load modification","Specialist review if unstable"],funnyTx:["Recommend never going overhead","Amputation of the labrum","Sensual touching of the superior labrum","Tell them to take up bowls"]},
+{id:"bankart",name:"Anterior Shoulder Instability",dialogue:"Joe my shoulder has come out before and now it feels like it wants to go again when I put my arm in certain positions.",correctDx:["Anterior Instability","Bankart-type","Traumatic Instability","Atraumatic Laxity"],correctTx:["Stabilisation programme","Proprioceptive work","Avoid provocative positions","Surgical opinion if recurrent"],funnyTx:["Recommend strapping it to the body","Amputation at the shoulder","Sensual touching of the anterior capsule","Tell them to never raise their arm"]},
+{id:"posteriorinstab",name:"Posterior Shoulder Instability",dialogue:"Hello Joe. My shoulder feels unstable when I push or reach across my body. It has slipped backwards before.",correctDx:["Posterior Instability","Posterior Labral","Seizure / Trauma History","Habitual"],correctTx:["Posterior stabilisation work","Avoid loading in flexion + IR","Proprioception","Specialist review"],funnyTx:["Recommend never pushing anything","Amputation of the posterior capsule","Sensual touching of the posterior joint","Tell them to only pull"]},
+{id:"multidir",name:"Multidirectional Instability",dialogue:"Joe both my shoulders feel loose and I can make them slip in different directions. They ache all the time.",correctDx:["Multidirectional Instability","Generalised Laxity","Atraumatic Instability","Muscle Patterning"],correctTx:["Comprehensive stabilisation","Proprioception + control","Avoid end-range stretching","Education"],funnyTx:["Recommend becoming a contortionist","Amputation of both shoulders","Sensual touching of all capsules","Tell them to wear a straitjacket"]},
+{id:"adhesive",name:"Adhesive Capsulitis (Frozen Shoulder)",dialogue:"Hi Joe. My shoulder has been getting stiffer and stiffer over months. I can barely reach above my head or behind my back now.",correctDx:["Adhesive Capsulitis","Frozen Shoulder","Stiff Shoulder Differential","Secondary Stiffness"],correctTx:["Pain education + graded movement","Pendular + progressive ROM","Corticosteroid pathway","Patience + time"],funnyTx:["Recommend forcing it immediately","Amputation at the shoulder","Sensual touching of the capsule","Tell them to wait 2 years"]},
+{id:"calcific",name:"Calcific Tendinopathy",dialogue:"Joe sudden severe shoulder pain that came on overnight. I can barely move it and the pain is constant.",correctDx:["Calcific Tendinopathy","Acute Calcific","Subacromial Pain","Need Imaging"],correctTx:["Pain relief + relative rest","Medical review / injection pathway","Gentle movement as able","Education"],funnyTx:["Recommend chiselling the calcium out","Amputation of the deposit","Sensual touching of the calcification","Tell them to drink more milk"]},
+{id:"parsonage",name:"Parsonage-Turner / Neuralgic Amyotrophy",dialogue:"Hello Joe. I had sudden severe shoulder and arm pain followed by weakness. It's improving slowly but still weak.",correctDx:["Neuralgic Amyotrophy","Parsonage-Turner","Brachial Neuritis","Cervical Differential"],correctTx:["Supportive + graded strengthening","Pain management","Neurology input","Time + monitoring"],funnyTx:["Recommend a full exorcism","Amputation of the plexus","Sensual touching of the nerves","Tell them it's all in their head"]},
+{id:"thoracicoutlet2",name:"True Neurogenic Thoracic Outlet",dialogue:"Joe my hand gets numb and weak, especially with overhead work, and I've lost some muscle in the hand.",correctDx:["Neurogenic Thoracic Outlet","Cervical Rib Consideration","Ulnar Neuropathy Differential","Need Specialist"],correctTx:["Postural + scapular work","Neural mobilisation","Activity modification","Specialist referral"],funnyTx:["Recommend removing the first rib yourself","Amputation of the arm","Sensual touching of the scalenes","Tell them to only work at waist height"]},
+{id:"pecmajor",name:"Pectoralis Major Strain / Tear",dialogue:"Hi Joe. I felt a pop in my chest while bench pressing. There's bruising and I can't push properly.",correctDx:["Pectoralis Major Tear","Pec Strain","Biceps Differential","Need Imaging"],correctTx:["Urgent imaging / surgical opinion if complete","Protected movement","Progressive loading later","Rehab protocol"],funnyTx:["Recommend never benching again","Amputation of the pec","Sensual touching of the insertion","Tell them to only do push-downs"]}
+];
+
+const bossMessages = [
+"Message from Phil the Boss: Nice work Joe! The clinic is running smoothly thanks to you.",
+"Message from Phil the Boss: Patients are leaving happier. Keep it up, champ!",
+"Message from Phil the Boss: You're making Evolution Therapy Clinic look good. Proud of you.",
+"Message from Phil the Boss: Solid diagnoses today. The team notices your effort.",
+"Message from Phil the Boss: Another milestone! Don't let the high scores go to your head... or do.",
+"Message from Phil the Boss: Excellent clinical reasoning (most of the time). Carry on!",
+"Message from Phil the Boss: The waiting room is smiling. That's on you, Joe."
+];
+
+const vulgarUnhappy = [
+"This is fucking useless, Joe.",
+"Are you even a real physio or just a fucking quack?",
+"My nan could do a better job than this shit.",
+"Waste of my fucking time.",
+"I should have just stayed home and wanked, would have been more productive.",
+"Fuck this, I'm going to see a real doctor.",
+"You're taking the piss with this diagnosis.",
+"What a load of absolute bollocks."
+];
+
+const rareFlirty = [
+"Look Joe... forget the stretches. Just lock the door and sort me out properly. I want the full service, if you know what I mean.",
+"I've been thinking about your hands on me the whole time. How about you finish the job properly? No one's watching.",
+"Fuck the advice. I want you to bend me over this treatment table and give me a real happy ending right now.",
+"I'm not leaving until you put those skilled hands somewhere more interesting. Make it worth my while, Joe."
+];
+
+let highScore = parseInt(localStorage.getItem('joeHighScore') || '0');
+let currentScore = 0;
+let client = null;
+let phase = 'diagnosis';
+let chosenDx = null;
+let chosenTx = null;
+let chosenClose = null;
+let dxPoints = 0;
+let txPoints = 0;
+let audioCtx = null;
+let musicOn = true;
+let oscNodes = [];
+let ailmentUseCount = {};
+let lastBossLevel = 0;
+
+function initAudio(){ if(audioCtx) return; audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playSlowMidi(){
+  if(!musicOn || !audioCtx) return;
+  stopMusic();
+  const notes = [196,220,246.94,261.63,293.66,329.63,349.23,392];
+  const pattern = [0,2,4,2,3,5,4,2,0,2,3,4,5,4,2,0];
+  const tempo = 0.55;
+  function schedule(){
+    if(!musicOn) return;
+    const t0 = audioCtx.currentTime;
+    pattern.forEach((nIdx,i)=>{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = notes[nIdx];
+      gain.gain.setValueAtTime(0.0001, t0 + i*tempo);
+      gain.gain.linearRampToValueAtTime(0.08, t0 + i*tempo + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i*tempo + tempo*0.9);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t0 + i*tempo); osc.stop(t0 + i*tempo + tempo);
+      oscNodes.push(osc);
+    });
+    const bass = audioCtx.createOscillator();
+    const bg = audioCtx.createGain();
+    bass.type = 'sine'; bass.frequency.value = 98; bg.gain.value = 0.04;
+    bass.connect(bg); bg.connect(audioCtx.destination);
+    bass.start(t0); bass.stop(t0 + pattern.length * tempo);
+    oscNodes.push(bass);
+    setTimeout(schedule, pattern.length * tempo * 1000 - 50);
+  }
+  schedule();
+}
+function stopMusic(){ oscNodes.forEach(o=>{ try{o.stop()}catch(e){} }); oscNodes = []; }
+
+document.getElementById('music-toggle').onclick = ()=>{
+  musicOn = !musicOn;
+  document.getElementById('music-toggle').textContent = 'Music: ' + (musicOn ? 'ON' : 'OFF');
+  if(musicOn){ initAudio(); if(audioCtx.state === 'suspended') audioCtx.resume(); playSlowMidi(); }
+  else stopMusic();
+};
+
+function drawJoe(canvas){
+  const ctx = canvas.getContext('2d');
+  const s = canvas.width / 40;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#e8b888';
+  for(let y=8;y<28;y++) for(let x=12;x<28;x++) ctx.fillRect(x*s,y*s,s,s);
+  ctx.fillStyle = '#d4a017';
+  [[10,6],[11,5],[12,4],[13,4],[14,3],[15,3],[16,3],[17,3],[18,3],[19,3],[20,3],[21,3],[22,4],[23,4],[24,5],[25,5],[26,6],[27,7],[28,8],[11,7],[12,6],[13,5],[14,5],[15,4],[16,4],[17,4],[18,4],[19,4],[20,4],[21,5],[22,5],[23,6],[24,6],[25,7],[26,8],[12,8],[13,7],[14,6],[15,6],[16,5],[17,5],[18,5],[19,5],[20,6],[21,6],[22,7],[23,8],[14,8],[15,7],[16,7],[17,6],[18,6],[19,7],[20,7],[21,8]].forEach(([x,y])=>ctx.fillRect(x*s,y*s,s,s));
+  ctx.fillStyle = '#3a7ca5'; ctx.fillRect(15*s,14*s,2*s,2*s); ctx.fillRect(22*s,14*s,2*s,2*s);
+  ctx.fillStyle = '#fff'; ctx.fillRect(15*s,14*s,s,s); ctx.fillRect(22*s,14*s,s,s);
+  ctx.fillStyle = '#b8860b'; ctx.fillRect(14*s,13*s,4*s,s); ctx.fillRect(21*s,13*s,4*s,s);
+  ctx.fillStyle = '#d4a07a'; ctx.fillRect(19*s,16*s,2*s,3*s);
+  ctx.fillStyle = '#c47a6a'; ctx.fillRect(16*s,20*s,s,s); ctx.fillRect(17*s,21*s,5*s,s); ctx.fillRect(22*s,20*s,s,s);
+  ctx.fillStyle = '#c4a060';
+  for(let x=14;x<26;x++) ctx.fillRect(x*s,22*s,s,s);
+  for(let x=15;x<25;x++) ctx.fillRect(x*s,23*s,s,s);
+  for(let x=16;x<24;x++) ctx.fillRect(x*s,24*s,s,s);
+  ctx.fillRect(17*s,25*s,5*s,s);
+  ctx.fillStyle = '#e8b888'; ctx.fillRect(17*s,26*s,6*s,3*s);
+  ctx.fillStyle = '#1a1a1a'; for(let y=29;y<40;y++) for(let x=8;x<32;x++) ctx.fillRect(x*s,y*s,s,s);
+  ctx.fillStyle = '#111'; ctx.fillRect(14*s,28*s,4*s,2*s); ctx.fillRect(22*s,28*s,4*s,2*s); ctx.fillRect(18*s,28*s,4*s,3*s);
+  ctx.fillStyle = '#ffd700'; ctx.fillRect(12*s,34*s,8*s,s);
+  ctx.fillStyle = '#ccc'; ctx.fillRect(12*s,36*s,10*s,s);
+}
+
+function drawClientFace(canvas, sex, seed){
+  const ctx = canvas.getContext('2d');
+  const s = canvas.width / 32;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  let rng = seed;
+  function rand(){ rng = (rng * 16807 + 7) % 2147483647; return (rng - 1) / 2147483646; }
+  function pick(arr){ return arr[Math.floor(rand() * arr.length)]; }
+  const skinTones = ['#f5d0b0','#e8b888','#d4a07a','#c68642','#8d5524','#f1c27d'];
+  const hairColors = sex === 'male' ? ['#2c1b0e','#4a3728','#6b4423','#1a1a1a','#c4a060','#d4a017','#8b4513','#555'] : ['#2c1b0e','#4a3728','#6b4423','#1a1a1a','#c4a060','#d4a017','#a0522d','#ff69b4','#8b0000','#4b0082'];
+  const skin = pick(skinTones); const hair = pick(hairColors);
+  ctx.fillStyle = skin;
+  for(let y=6;y<24;y++) for(let x=8;x<24;x++) if((x-16)*(x-16)+(y-14)*(y-14)<90) ctx.fillRect(x*s,y*s,s,s);
+  ctx.fillStyle = hair;
+  if(sex === 'male'){
+    for(let x=9;x<23;x++) ctx.fillRect(x*s,5*s,s,s);
+    for(let x=8;x<24;x++) ctx.fillRect(x*s,6*s,s,s);
+    for(let x=8;x<11;x++) for(let y=7;y<12;y++) ctx.fillRect(x*s,y*s,s,s);
+    for(let x=21;x<24;x++) for(let y=7;y<12;y++) ctx.fillRect(x*s,y*s,s,s);
+    if(rand()>0.5) for(let x=11;x<21;x++) ctx.fillRect(x*s,4*s,s,s);
+  } else {
+    for(let x=7;x<25;x++) ctx.fillRect(x*s,4*s,s,s);
+    for(let x=6;x<26;x++) ctx.fillRect(x*s,5*s,s,s);
+    for(let x=6;x<10;x++) for(let y=6;y<20;y++) ctx.fillRect(x*s,y*s,s,s);
+    for(let x=22;x<26;x++) for(let y=6;y<20;y++) ctx.fillRect(x*s,y*s,s,s);
+    if(rand()>0.4){ for(let x=8;x<24;x++) ctx.fillRect(x*s,20*s,s,s); for(let x=9;x<23;x++) ctx.fillRect(x*s,21*s,s,s); }
+  }
+  ctx.fillStyle = '#fff'; ctx.fillRect(11*s,12*s,3*s,2*s); ctx.fillRect(18*s,12*s,3*s,2*s);
+  ctx.fillStyle = pick(['#3a7ca5','#4a3728','#2e8b57','#555','#1a1a1a']);
+  ctx.fillRect(12*s,12*s,2*s,2*s); ctx.fillRect(19*s,12*s,2*s,2*s);
+  ctx.fillStyle = hair; ctx.fillRect(11*s,11*s,3*s,s); ctx.fillRect(18*s,11*s,3*s,s);
+  ctx.fillStyle = skin; ctx.fillRect(15*s,14*s,2*s,3*s);
+  ctx.fillStyle = '#c47a6a';
+  if(rand()>0.3){ ctx.fillRect(13*s,18*s,6*s,s); ctx.fillRect(14*s,19*s,4*s,s); } else ctx.fillRect(14*s,18*s,4*s,s);
+  if(sex==='male' && rand()>0.55){ ctx.fillStyle = hair; for(let x=12;x<20;x++) ctx.fillRect(x*s,20*s,s,s); for(let x=13;x<19;x++) ctx.fillRect(x*s,21*s,s,s); }
+  ctx.fillStyle = pick(['#1a1a1a','#2c3e50','#8b0000','#1a3a5c','#2e4a2e','#4a2c6a','#333']);
+  for(let y=24;y<32;y++) for(let x=6;x<26;x++) ctx.fillRect(x*s,y*s,s,s);
+  ctx.fillStyle = '#000'; ctx.fillRect(13*s,23*s,6*s,2*s);
+}
+
+function randFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function getAvailableAilments(sex){
+  return ailments.filter(a => {
+    const used = (ailmentUseCount[a.id] || 0) < 1;
+    const genderOk = !(a.id === "member" || a.id === "erectile" || a.id === "smell") || sex === "male";
+    return used && genderOk;
+  });
+}
+
+function generateClient(){
+  if(Math.random() < 0.07){
+    const ail = ailments.find(a => a.id === "rotator") || ailments[7];
+    return {sex:"male", first:"Fernao", last:"Abreu", age:34+Math.floor(Math.random()*20), occupation:"Jiu Jitsu Coach", ailment:ail, seed:42, isEaster:true,
+      friendliness:randFrom(["medium","high"]), promiscuity:randFrom(["low","medium"]), sexuality:"straight", wantsHappy:false};
+  }
+  const sex = Math.random() < 0.5 ? "male" : "female";
+  let available = getAvailableAilments(sex);
+  if(available.length === 0){
+    showFinalScreen();
+    return null;
+  }
+  const first = sex === "male" ? randFrom(maleFirst) : randFrom(femaleFirst);
+  const last = randFrom(surnames);
+  const age = 18 + Math.floor(Math.random()*68);
+  const occupation = randFrom(occupations);
+  const ailment = randFrom(available);
+  const seed = Math.floor(Math.random()*100000);
+  ailmentUseCount[ailment.id] = 1;
+
+  const friendliness = Math.random() < 0.25 ? "low" : (Math.random() < 0.5 ? "medium" : "high");
+  const promiscuity = Math.random() < 0.4 ? "low" : (Math.random() < 0.7 ? "medium" : "high");
+  let sexuality;
+  if(sex === "male"){
+    const r = Math.random();
+    sexuality = r < 0.85 ? "straight" : (r < 0.95 ? "gay" : "bi");
+  } else {
+    const r = Math.random();
+    sexuality = r < 0.85 ? "straight" : (r < 0.93 ? "lesbian" : "bi");
+  }
+  const wantsHappy = (promiscuity === "high" && Math.random() < 0.04);
+
+  return {sex, first, last, age, occupation, ailment, seed, isEaster:false, friendliness, promiscuity, sexuality, wantsHappy};
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function updateScores(){
+  document.getElementById('current-score').textContent = currentScore;
+  document.getElementById('high-score').textContent = highScore;
+  document.getElementById('title-high').textContent = highScore;
+}
+
+function startGame(){
+  initAudio();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if(musicOn) playSlowMidi();
+  currentScore = 0; lastBossLevel = 0; ailmentUseCount = {};
+  document.getElementById('next-btn').style.display = 'block';
+  updateScores();
+  nextClient();
+}
+
+function goTitle(){ showScreen('title-screen'); updateScores(); }
+
+function showFinalScreen(){
+  let message = "";
+  if(highScore >= 3000) message = "Message from Phil at Evolution: Outstanding work Joe. You're one of the best we've ever had. The clinic is lucky to have you.";
+  else if(highScore >= 2000) message = "Message from Phil at Evolution: Really solid performance today. Keep this up and you'll be senior material soon.";
+  else if(highScore >= 1000) message = "Message from Phil at Evolution: Decent shift. A few rough edges but the patients mostly left happy.";
+  else if(highScore >= 500) message = "Message from Phil at Evolution: You got through the day. Let's aim a bit higher next time.";
+  else message = "Message from Phil at Evolution: That was... eventful. We need to have a chat about professional boundaries.";
+
+  document.getElementById('result-content').innerHTML = `
+    <h2 style="color:#ffd700">Clinic Closed</h2>
+    <p>Congratulations!</p>
+    <p>You have seen every patient.</p>
+    <p style="margin:12px 0">Final Score: <span class="high-score">${highScore}</span></p>
+    <div class="boss-msg">${message}</div>
+  `;
+  showScreen('result-screen');
+  document.getElementById('next-btn').style.display = 'none';
+}
+
+function nextClient(){
+  client = generateClient();
+  if(!client) return;
+
+  phase = 'diagnosis'; chosenDx = null; chosenTx = null; chosenClose = null; dxPoints = 0; txPoints = 0;
+  document.getElementById('feedback').innerHTML = '';
+  document.getElementById('phase-label').textContent = 'Choose diagnosis:';
+  drawClientFace(document.getElementById('client-avatar'), client.sex, client.seed);
+  document.getElementById('client-name').textContent = client.first + ' ' + client.last;
+  document.getElementById('client-meta').textContent = client.age + ' • ' + client.sex + ' • ' + client.occupation;
+
+  let dlg = client.ailment.dialogue;
+  if(client.isEaster) dlg = "Hello Joe. I've been getting a pain in my right shoulder for a few weeks now. It hurts every time I lift it out to the side or try to reach overhead. Feels weak too. Name's Fernao by the way – I coach jiu jitsu.";
+  if(client.wantsHappy) dlg = randFrom(rareFlirty);
+  document.getElementById('client-dialogue').textContent = dlg;
+
+  const correct = client.ailment.correctDx[0];
+  let options = [correct, ...shuffle(client.ailment.correctDx.slice(1).concat(ailments.filter(a => a.id !== client.ailment.id).map(a => a.correctDx[0]))).slice(0,3)];
+  options = shuffle([...new Set(options)]).slice(0,4);
+  while(options.length < 4) options.push(randFrom(ailments).correctDx[0]);
+
+  const choicesDiv = document.getElementById('choices');
+  choicesDiv.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = opt;
+    b.onclick = () => chooseDiagnosis(opt, correct, b);
+    choicesDiv.appendChild(b);
+  });
+  showScreen('game-screen');
+}
+
+function chooseDiagnosis(selected, correct, btn){
+  if(phase !== 'diagnosis') return;
+  chosenDx = selected;
+  const isCorrect = selected === correct;
+  dxPoints = isCorrect ? 40 : 0;
+  document.querySelectorAll('#choices .btn').forEach(b => {
+    b.onclick = null;
+    if(b.textContent === correct) b.classList.add('correct');
+    else if(b === btn && !isCorrect) b.classList.add('wrong');
+  });
+  document.getElementById('feedback').innerHTML = isCorrect ? '<span class="good">Correct diagnosis!</span>' : '<span class="bad">Not quite. Correct was: ' + correct + '</span>';
+  phase = 'treatment';
+  document.getElementById('phase-label').textContent = 'Choose treatment:';
+
+  setTimeout(() => {
+    const correctTx = client.ailment.correctTx[0];
+    let pool = [...client.ailment.correctTx, ...client.ailment.funnyTx];
+    if(Math.random() < 0.4) pool.push('Sensual touching','Amputation','Recommend crystals and positive vibes only');
+    let options = [correctTx, ...shuffle(pool.filter(t => t !== correctTx)).slice(0,3)];
+    options = shuffle([...new Set(options)]).slice(0,4);
+    while(options.length < 4) options.push(randFrom(['Ice pack and hope','Refer to specialist','Ignore it and carry on','Yoga once a year']));
+
+    const choicesDiv = document.getElementById('choices');
+    choicesDiv.innerHTML = '';
+    options.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.textContent = opt;
+      b.onclick = () => chooseTreatment(opt, correctTx, b);
+      choicesDiv.appendChild(b);
+    });
+    document.getElementById('feedback').innerHTML = '';
+  }, 900);
+}
+
+function chooseTreatment(selected, correct, btn){
+  if(phase !== 'treatment') return;
+  chosenTx = selected;
+  const isCorrect = selected === correct || client.ailment.correctTx.includes(selected);
+  txPoints = isCorrect ? 40 : 0;
+  document.querySelectorAll('#choices .btn').forEach(b => {
+    b.onclick = null;
+    if(client.ailment.correctTx.includes(b.textContent)) b.classList.add('correct');
+    else if(b === btn && !isCorrect) b.classList.add('wrong');
+  });
+
+  let feedbackLines = [];
+  if(dxPoints + txPoints >= 80){
+    feedbackLines.push(randFrom([
+      "That actually makes a lot of sense, thanks Joe.",
+      "Brilliant, I feel better already just hearing that.",
+      "Finally someone who knows what they're talking about.",
+      "Cheers Joe, that clears it up."
+    ]));
+  } else if(dxPoints + txPoints >= 40){
+    feedbackLines.push(randFrom([
+      "Hmm, okay... if you say so.",
+      "Right... fair enough I guess.",
+      "I'll take your word for it.",
+      "Alright then.",
+      "If that's what you think..."
+    ]));
+  } else {
+    if(Math.random() < 0.55) feedbackLines.push(randFrom(vulgarUnhappy));
+    else feedbackLines.push(randFrom([
+      "Not sure I follow, but alright.",
+      "Whatever you say...",
+      "I'm not convinced but go on.",
+      "That doesn't sound right to me."
+    ]));
+  }
+
+  if(client.promiscuity === 'high' && Math.random() < 0.4 && !client.wantsHappy){
+    if(client.sex === 'female') feedbackLines.push(randFrom(["You've got nice hands, you know that?","Is it just me or is it warm in here?","You seem very... thorough."]));
+    else feedbackLines.push(randFrom(["You're pretty good with your hands.","Do all the physios here look like you?","Interesting technique."]));
+  } else if(client.friendliness === 'low' && Math.random() < 0.35){
+    feedbackLines.push(randFrom(["Just get on with it.","I haven't got all day.","Whatever."]));
+  }
+
+  document.getElementById('client-dialogue').textContent = feedbackLines.join(' ');
+  document.getElementById('phase-label').textContent = 'Closing – choose additional service:';
+  phase = 'closing';
+
+  const closeOptions = ["Friendly goodbye","Educational advice / home exercises","Show some stretching tips","Offer a \"happy ending\""];
+  const choicesDiv = document.getElementById('choices');
+  choicesDiv.innerHTML = '';
+  closeOptions.forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = opt;
+    b.onclick = () => chooseClosing(opt, b);
+    choicesDiv.appendChild(b);
+  });
+  document.getElementById('feedback').innerHTML = '';
+}
+
+function chooseClosing(selected, btn){
+  if(phase !== 'closing') return;
+  chosenClose = selected;
+  document.querySelectorAll('#choices .btn').forEach(b => b.onclick = null);
+
+  let closePoints = 0;
+  let closeNote = '';
+
+  const isHappy = selected.includes('happy ending');
+  const isFriendly = selected === 'Friendly goodbye';
+  const isEdu = selected.includes('Educational') || selected.includes('stretching');
+
+  if(isFriendly){
+    if(client.friendliness === 'high'){ closePoints += 15; closeNote = 'They appreciated the warm goodbye.'; }
+    else if(client.friendliness === 'medium'){ closePoints += 5; closeNote = 'Polite enough.'; }
+    else { closePoints -= 20; closeNote = 'They found the friendliness annoying / fake.'; }
+  }
+  if(isEdu){ closePoints += 10; closeNote = 'Useful advice given. Professional.'; }
+
+  if(isHappy){
+    if(client.wantsHappy){
+      closePoints += 50;
+      closeNote = 'They got exactly what they came for.';
+    } else {
+      const likesIt = (client.sexuality === 'gay' || client.sexuality === 'lesbian' || client.sexuality === 'bi') && (client.promiscuity === 'medium' || client.promiscuity === 'high');
+      const hatesIt = (client.sex === 'male' && client.sexuality === 'straight') || (client.promiscuity === 'low');
+      if(likesIt){ closePoints += 35; closeNote = 'They were very satisfied with the... extra service.'; }
+      else if(hatesIt){ closePoints -= 40; closeNote = 'They were offended by the unprofessional offer.'; }
+      else { closePoints -= 10; closeNote = 'Awkward silence. They declined.'; }
+    }
+  }
+
+  if((dxPoints + txPoints) < 40 && Math.random() < 0.4){
+    closeNote += ' ' + randFrom(vulgarUnhappy);
+  }
+
+  let points = dxPoints + txPoints + closePoints;
+  if(dxPoints > 0 && txPoints > 0) points += 20;
+
+  const isMassage = chosenTx && (chosenTx.toLowerCase().includes('massage') || chosenTx.toLowerCase().includes('soft tissue') || chosenTx.toLowerCase().includes('manual therapy') || chosenTx.toLowerCase().includes('massage the pain away'));
+  let sued = false;
+  if(client.sex === 'female' && client.age > 60 && isMassage){
+    sued = true; points = 0;
+    currentScore = 0; highScore = 0; localStorage.setItem('joeHighScore','0'); lastBossLevel = 0;
+  } else {
+    currentScore += Math.max(0, points);
+    if(currentScore > highScore){ highScore = currentScore; localStorage.setItem('joeHighScore', highScore.toString()); }
+  }
+  updateScores();
+
+  let bossHtml = '';
+  const currentLevel = Math.floor(currentScore / 750);
+  if(currentLevel > lastBossLevel && currentScore > 0){
+    lastBossLevel = currentLevel;
+    bossHtml = '<div class="boss-msg">' + randFrom(bossMessages) + '</div>';
+  }
+
+  let html = '<p><strong>' + client.first + ' ' + client.last + '</strong></p><p class="muted">' + client.ailment.name + '</p><br>';
+  if(sued){
+    html += '<p class="bad">Oh no! ' + client.first + ' complained that the massage caused bruising and intends to sue the physician!</p>';
+    html += '<p class="warning">Your score and high score have been reset to zero.</p>';
+  } else {
+    html += '<p>Diagnosis: ' + (dxPoints > 0 ? '<span class="good">Correct</span>' : '<span class="bad">Incorrect</span>') + '</p>';
+    html += '<p>Treatment: ' + (txPoints > 0 ? '<span class="good">Appropriate</span>' : '<span class="bad">Questionable</span>') + '</p>';
+    html += '<p>Closing: ' + closeNote + '</p>';
+    html += '<p>Points this client: ' + (points >= 0 ? '+' : '') + points + '</p>';
+  }
+  html += bossHtml + '<p style="margin-top:10px">Running score: ' + currentScore + '</p>';
+  document.getElementById('result-content').innerHTML = html;
+  showScreen('result-screen');
+  phase = 'done';
+}
+
+document.getElementById('start-btn').onclick = startGame;
+document.getElementById('next-btn').onclick = nextClient;
+document.getElementById('title-btn').onclick = goTitle;
+
+drawJoe(document.getElementById('title-joe'));
+updateScores();
+</script>
+</body>
+</html>
